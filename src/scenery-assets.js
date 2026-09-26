@@ -61,7 +61,9 @@ export class SceneryAssets {
     this.ready = Promise.allSettled([
       renderProfile.detailedFoliage && this.trees(),
       this.streetlights(),
-      renderProfile.detailedFoliage && this.shrubs(),
+      renderProfile.detailedFoliage &&
+        this.world.type !== "hospital" &&
+        this.shrubs(),
     ]).then((results) => {
       for (const result of results)
         if (result.status === "rejected")
@@ -104,7 +106,7 @@ export class SceneryAssets {
     for (const mesh of this.treeMeshes) mesh.count = 0;
   }
   async streetlights() {
-    if (this.world.type === "highway") return;
+    if (["highway", "hospital"].includes(this.world.type)) return;
     const parts = await loadAsset("street_lamp_01", "lamp");
     if (!this.active) return;
     const locations = [];

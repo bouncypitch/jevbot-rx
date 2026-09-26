@@ -1,6 +1,14 @@
 import { rng, choose, dist, heading, move, samplePolyline } from "./math.js";
 import { generateHighway, makeHighwayRoute } from "./highway.js";
 export const THEMES = {
+  hospital: {
+    name: "St. Jev General · Floor 3",
+    subtitle: "Pharmacy to ICU. People first.",
+    size: 5,
+    traffic: 30,
+    buildings: 1,
+    limit: 8,
+  },
   city: {
     name: "Skyline City",
     subtitle: "Long avenues. A higher horizon.",
@@ -104,7 +112,9 @@ export function generateWorld(seed, type = "town") {
             const style =
               type === "city"
                 ? choose(r, ["skyscraper", "skyscraper", "apartment", "shop"])
-                : choose(r, ["cottage", "cottage", "modern", "townhouse"]);
+                : type === "hospital"
+                  ? choose(r, ["apartment", "modern", "shop"])
+                  : choose(r, ["cottage", "cottage", "modern", "townhouse"]);
             add("building", bx, bz, {
               style,
               width: (type === "city" ? 16 : 10) + r() * 2,
@@ -201,8 +211,40 @@ export function generateWorld(seed, type = "town") {
       { height: 5 + r() * 7, kind: choose(r, ["round", "pine"]) },
     );
   }
+  if (type === "hospital") {
+    // Indoor floor: every block becomes one ward whose walls line the corridors.
+    const parcels = objects.filter((o) => o.type === "parcel");
+    for (let k = objects.length - 1; k >= 0; k--)
+      if (["tree", "bench", "building", "streetlight"].includes(objects[k].type))
+        objects.splice(k, 1);
+    const wards = ["Pharmacy", "ICU", "Emergency", "OR 2", "Lab", "Radiology", "Ward 3B", "Ward 3C", "Cardiology", "Pediatrics", "Oncology", "Imaging", "Recovery", "Reception", "Dialysis", "Supply"];
+    // Outer walls close the floor so no outdoor space is visible.
+    const minX = xs[0], maxX = xs.at(-1), minZ = zs[0], maxZ = zs.at(-1);
+    const spanX = maxX - minX + 40, spanZ = maxZ - minZ + 40;
+    for (const [x, z, width, depth] of [
+      [(minX + maxX) / 2, minZ - 17.5, spanX, 20],
+      [(minX + maxX) / 2, maxZ + 17.5, spanX, 20],
+      [minX - 17.5, (minZ + maxZ) / 2, 20, spanZ],
+      [maxX + 17.5, (minZ + maxZ) / 2, 20, spanZ],
+    ])
+      add("building", x, z, { style: "ward", width, depth, height: 6.5, color: "#f3f5f7", roof: "#dfe4ea", rotation: 0 });
+    parcels.forEach((p, k) =>
+      add("building", p.x, p.z, {
+        style: "ward",
+        label: wards[k % wards.length],
+        width: p.width + 2,
+        depth: p.depth + 2,
+        height: 6.5,
+        color: "#f3f5f7",
+        roof: "#dfe4ea",
+        rotation: 0,
+      }),
+    );
+  }
   const byId = Object.fromEntries(nodes.map((v) => [v.id, v]));
-  for (const node of nodes)
+  // Hospital corridors have open crossings: no signals or stop signs indoors.
+  if (type === "hospital") for (const node of nodes) node.control = "open";
+  for (const node of type === "hospital" ? [] : nodes)
     for (const nid of node.neighbors) {
       const other = byId[nid],
         h = heading(other, node),

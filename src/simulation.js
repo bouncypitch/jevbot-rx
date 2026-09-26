@@ -113,9 +113,20 @@ export class Simulation {
     this.traffic = [];
     for (let i = 0; i < this.world.theme.traffic; i++) this.spawnTraffic(i);
     this.pedestrians = [];
+    // Hospital hazards: patients who step out of a doorway into the robot's
+    // corridor. Each triggers at the same route distance for every brain.
+    this.stepOuts =
+      type === "hospital"
+        ? [140, 300, 460].map((at) => ({ at, side: 1 }))
+        : [];
     for (
       let i = 0;
-      i < (type === "highway" ? 0 : 14 + (type === "city" ? 12 : 0));
+      i <
+      (type === "highway"
+        ? 0
+        : type === "hospital"
+          ? 400
+          : 14 + (type === "city" ? 12 : 0));
       i++
     ) {
       const node = choose(this.r, this.world.nodes),
@@ -494,7 +505,48 @@ export class Simulation {
       if (!car || dist(car, node) > 17 || this.time - lock.at > 7)
         this.locks.delete(id);
     }
+    for (const hazard of this.stepOuts || []) {
+      const route = this.player.route;
+      if (!hazard.person && this.player.s >= hazard.at - 18) {
+        const at = pointAt(route.points, hazard.at),
+          ahead = pointAt(route.points, hazard.at + 1),
+          h = heading(at, ahead);
+        // Step out of a doorway beside the robot's lane and stop in it.
+        const start = move(at, h + Math.PI / 2, 3.4 * hazard.side);
+        hazard.person = {
+          id: `patient-${hazard.at}`,
+          type: "pedestrian",
+          role: "patient",
+          nodeId: this.pedestrians[0]?.nodeId,
+          x: start.x,
+          z: start.z,
+          scripted: { start, heading: h - (Math.PI / 2) * hazard.side, walked: 0 },
+          walking: true,
+          speed: 1.4,
+          width: 0.6,
+          depth: 0.6,
+          height: 1.7,
+        };
+        this.pedestrians.push(hazard.person);
+        this.event("A patient steps out of a doorway", "info");
+      }
+    }
     for (const p of this.pedestrians) {
+      if (p.scripted?.still) continue;
+      if (p.scripted) {
+        const sp = p.scripted;
+        // Step into the lane, pause ~3 s (a patient getting their bearings),
+        // then continue across and out of the way.
+        sp.t = (sp.t ?? 0) + dt;
+        if (sp.walked < 3.4 || (sp.t > 5 && sp.walked < 12)) sp.walked += dt * 1.6;
+        const pos = move(sp.start, sp.heading, sp.walked);
+        p.x = pos.x;
+        p.z = pos.z;
+        p.heading = sp.heading;
+        p.walking = sp.walked < 3.4 || (sp.t > 5 && sp.walked < 12);
+        p.speed = p.walking ? 1.6 : 0;
+        continue;
+      }
       const node = this.world.byId[p.nodeId],
         walk = signalState(node, this.time, 0).walk;
       if (p.crossing) {
@@ -631,7 +683,9 @@ export class Simulation {
         object,
         // Newly spawned traffic and initial pedestrian placement are teleports.
         previous:
-          !firstStep && previous.get(object.id)?.route === object.route
+          !firstStep &&
+          previous.has(object.id) &&
+          previous.get(object.id).route === object.route
             ? previous.get(object.id).pose
             : null,
       })),
@@ -707,6 +761,31 @@ export class Simulation {
       this.autopilot = false;
       this.event("Destination reached. Nicely driven.", "success");
     }
+  }
+  // Demo: people standing in the robot's lane that it must steer around.
+  addLaneObstacles(distances = [70, 170, 280]) {
+    this.stepOuts = [];
+    const route = this.player.route;
+    distances.forEach((at, k) => {
+      const p = pointAt(route.points, at),
+        h = heading(p, pointAt(route.points, at + 1)),
+        spot = move(p, h + Math.PI / 2, k % 2 ? -0.4 : 0.4);
+      this.pedestrians.push({
+        id: `patient-still-${at}`,
+        type: "pedestrian",
+        role: "patient",
+        nodeId: this.pedestrians[0]?.nodeId,
+        x: spot.x,
+        z: spot.z,
+        heading: h + Math.PI / 2,
+        scripted: { still: true },
+        walking: false,
+        speed: 0,
+        width: 0.6,
+        depth: 0.6,
+        height: 1.7,
+      });
+    });
   }
   rerouteIfNeeded() {
     if (
@@ -1173,6 +1252,7 @@ export class Simulation {
     // in perception, and are also sent during off-road recovery for context.
     const { drivable_polygons, ...roadSummary } = plan.road;
     const state = {
+      world_type: this.world.type,
       batch_id: plan.batch_id,
       route_version: this.routeVersion,
       global: this.globalNavigation(),

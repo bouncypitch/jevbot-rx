@@ -1,0 +1,104 @@
+// Off-the-shelf LLM brain for the Brain Race. It receives the exact Jev request
+// (same state tables, same candidate paths, same questions) and must answer in
+// Jev's shape, so the only difference between the two robots is the model.
+
+export const llmModel = (env) =>
+  env.GMI_MODEL || "deepseek-ai/DeepSeek-V4-Flash";
+
+function oneHot(criteria, choice) {
+  return Object.fromEntries(
+    Object.keys(criteria).map((id) => [id, id === choice ? 1 : 0]),
+  );
+}
+
+export async function askLLM(request, env, signal) {
+  const questions = request.questions;
+  const schema = Object.fromEntries(
+    Object.entries(questions).map(([id, q]) => [
+      id,
+      `one of ${Object.keys(q.criteria).join(" | ")}`,
+    ]),
+  );
+  const res = await fetch(
+    `${env.GMI_BASE_URL || "https://api.gmi-serving.com/v1"}/chat/completions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.GMI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: llmModel(env),
+        temperature: 0,
+        // Fastest setting the model offers; the cap leaves room for its
+        // mandatory thinking tokens so answers are not truncated.
+        reasoning_effort: "minimal",
+        max_tokens: 600,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              'You control a hospital delivery robot. Answer every question by picking exactly one option id. Reply with JSON only, e.g. {"motion":"drive","vector":"v3"}.',
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              state: request.state,
+              questions: Object.fromEntries(
+                Object.entries(questions).map(([id, q]) => [
+                  id,
+                  { instructions: q.instructions, options: Object.keys(q.criteria) },
+                ]),
+              ),
+              answer_format: schema,
+            }),
+          },
+        ],
+      }),
+      signal: signal || AbortSignal.timeout(15000),
+    },
+  );
+  if (!res.ok) {
+    const error = new Error(`GMI LLM returned HTTP ${res.status}.`);
+    error.status = res.status;
+    throw error;
+  }
+  const data = await res.json();
+  let parsed = {};
+  try {
+    const text = data.choices?.[0]?.message?.content || "{}";
+    parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  } catch {
+    throw new Error("LLM returned unparseable JSON.");
+  }
+  const answers = {};
+  for (const [id, q] of Object.entries(questions)) {
+    let choice = String(parsed[id] ?? "").trim();
+    // Accept "3" or "V3" for candidate "v3"; only the model's formatting differs.
+    if (!Object.hasOwn(q.criteria, choice)) {
+      const match = Object.keys(q.criteria).find(
+        (k) => k.toLowerCase() === choice.toLowerCase() || k === `v${choice}`,
+      );
+      if (match) choice = match;
+    }
+    if (!Object.hasOwn(q.criteria, choice)) {
+      console.warn(`[llm] invalid ${id}: ${JSON.stringify(parsed[id])} not in ${Object.keys(q.criteria).join(",")}`);
+      throw new Error(`LLM returned an invalid ${id} choice.`);
+    }
+    answers[id] = {
+      type: "choice",
+      choice,
+      probabilities: oneHot(q.criteria, choice),
+      confidence: 1,
+    };
+  }
+  return {
+    model: llmModel(env),
+    answers,
+    usage: {
+      input_tokens: data.usage?.prompt_tokens ?? 0,
+      output_tokens: data.usage?.completion_tokens ?? 0,
+    },
+  };
+}

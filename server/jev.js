@@ -5,6 +5,7 @@ import {
   stopAvailability,
 } from "../src/planning.js";
 import { prepareJevRequest, expandJevAnswers } from "../src/jev-request.js";
+import { askLLM } from "./llm.js";
 
 export function validState(state) {
   if (
@@ -60,7 +61,7 @@ export function validState(state) {
 export function questions(state) {
   return prepareJevRequest(state).request.questions;
 }
-export async function evaluate(state, env, signal, onUsage) {
+export async function evaluate(state, env, signal, onUsage, brain = "jev") {
   if (!validState(state)) {
     const error = new Error(
       "A valid driving observation and candidate batch are required.",
@@ -74,7 +75,10 @@ export async function evaluate(state, env, signal, onUsage) {
   const body = JSON.stringify(prepared.request);
   const apiCall = Object.keys(requestQuestions).length > 0;
   let data = { answers: {}, usage: { input_tokens: 0, output_tokens: 0 } };
-  if (apiCall) {
+  const llm = brain === "llm";
+  if (apiCall && llm) {
+    data = await askLLM(prepared.request, env, signal);
+  } else if (apiCall) {
     const res = await fetch("https://api.typesafe.ai/v1/systemone", {
       method: "POST",
       headers: {
@@ -121,11 +125,16 @@ export async function evaluate(state, env, signal, onUsage) {
     throw new Error(
       "Jev selected a path with an imminent collision. Braking before retry.",
     );
-  const inputPrice = Number(env.JEV_INPUT_PRICE ?? 0.042),
-    outputPrice = Number(env.JEV_OUTPUT_PRICE ?? 0);
+  const inputPrice = Number(
+      llm ? (env.GMI_INPUT_PRICE ?? 0.25) : (env.JEV_INPUT_PRICE ?? 0.042),
+    ),
+    outputPrice = Number(
+      llm ? (env.GMI_OUTPUT_PRICE ?? 0.75) : (env.JEV_OUTPUT_PRICE ?? 0),
+    );
   return {
     model: data.model ?? null,
-    decision_source: apiCall ? "jev" : "only_eligible_action",
+    brain,
+    decision_source: apiCall ? brain : "only_eligible_action",
     request_bytes: apiCall ? Buffer.byteLength(body) : 0,
     candidate_ids: prepared.aliases,
     resolved_single_choices: Object.keys(prepared.fixed),
@@ -168,6 +177,8 @@ export function jevMiddleware(env) {
         auth_required: false,
         authenticated: false,
         configured: !!env.TYPESAFE_API_KEY,
+        llm_configured: !!env.GMI_API_KEY,
+        llm_model: env.GMI_MODEL || "deepseek-ai/DeepSeek-V4-Flash",
         model: "jev-latest",
         pricing: {
           input_per_million: Number(env.JEV_INPUT_PRICE ?? 0.042),
@@ -176,7 +187,15 @@ export function jevMiddleware(env) {
       });
     if (path !== "/api/decide" || req.method !== "POST")
       return send(404, { error: "Not found" });
-    if (!env.TYPESAFE_API_KEY)
+    const brain =
+      new URL(req.url, "http://localhost").searchParams.get("brain") === "llm"
+        ? "llm"
+        : "jev";
+    if (brain === "llm" && !env.GMI_API_KEY)
+      return send(503, {
+        error: "Set GMI_API_KEY in .env and restart the server.",
+      });
+    if (brain === "jev" && !env.TYPESAFE_API_KEY)
       return send(503, {
         error: "Set TYPESAFE_API_KEY in .env and restart the server.",
       });
@@ -186,7 +205,7 @@ export function jevMiddleware(env) {
       req.headers.origin !== `https://${req.headers.host}`
     )
       return send(403, { error: "Origin not allowed" });
-    if (active >= 3)
+    if (active >= 6)
       return send(429, { error: "Too many active Jev requests." });
     active++;
     try {
@@ -204,7 +223,7 @@ export function jevMiddleware(env) {
           error:
             "A valid driving observation and candidate batch are required.",
         });
-      const result = await evaluate(state, env);
+      const result = await evaluate(state, env, null, null, brain);
       send(200, result);
     } catch (e) {
       send(e.status || 502, {

@@ -1411,3 +1411,19 @@ body.crashed .world-picker {
   font-size: 11px;
   color: #737985;
 }
+
+/* Brain Race: compact HUD inside the split-screen iframes */
+body.race .topbar,
+body.race .dock-tools,
+body.race .bottom-hud,
+body.race .navigation-hud,
+body.race #arrival,
+body.race #crash-dialog,
+body.race #vector-labels,
+body.race #toast {
+  display: none !important;
+}
+body.race .minimap {
+  transform: scale(0.6);
+  transform-origin: top right;
+}

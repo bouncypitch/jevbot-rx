@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JevBOT Rx — Brain Race</title>
+    <style>
+      :root {
+        --bg: #0b1016;
+        --panel: #131b24;
+        --line: #243242;
+        --text: #eef3f8;
+        --muted: #8ea0b3;
+        --jev: #34e0ff;
+        --llm: #ffb454;
+        --good: #4ade80;
+        --bad: #f87171;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 { font-size: 24px; margin: 0; }
+      header .mission { font-size: 20px; }
+      header .mission {
+        color: var(--muted);
+        flex: 1;
+      }
+      header .mission b { color: var(--text); }
+      button {
+        background: var(--jev);
+        color: #001018;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .panes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 8px;
+        min-height: 0;
+      }
+      .pane {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        min-height: 0;
+      }
+      .pane.jev { border-color: color-mix(in srgb, var(--jev) 60%, transparent); }
+      .pane.llm { border-color: color-mix(in srgb, var(--llm) 60%, transparent); }
+      .label {
+        padding: 8px 12px;
+        font-weight: 700;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .jev .label { color: var(--jev); }
+      .llm .label { color: var(--llm); }
+      .label { font-size: 22px; }
+      iframe { width: 100%; height: 100%; border: 0; min-height: 0; }
+      .stats {
+        display: grid;
+        grid-template-columns: 1.6fr repeat(4, 1fr);
+        gap: 1px;
+        background: var(--line);
+      }
+      .stat { background: var(--panel); padding: 8px 10px; }
+      .stat span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .stat strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+      .stat.big strong { font-size: 30px; }
+      .bar { height: 4px; background: var(--line); margin-top: 6px; border-radius: 2px; }
+      .bar i { display: block; height: 100%; width: 0; border-radius: 2px; }
+      .jev .bar i { background: var(--jev); }
+      .llm .bar i { background: var(--llm); }
+      .pane { position: relative; }
+      .decision {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: 56px;
+        padding: 10px 16px;
+        border-radius: 12px;
+        background: rgba(8, 14, 20, 0.82);
+        font-size: 30px;
+        font-weight: 800;
+        text-align: center;
+        pointer-events: none;
+      }
+      .decision.drive { color: var(--good); }
+      .decision.stop { color: var(--bad); }
+      .decision.wait { color: var(--llm); }
+      .decision.done { color: var(--jev); }
+      .decision.idle { color: var(--muted); }
+      .decision small { font-size: 22px; color: var(--text); font-weight: 600; }
+      .big {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--line);
+      }
+      .big .stat strong { font-size: 44px; }
+      .big .stat span, .stats .stat span { font-size: 15px; }
+      .stats { grid-template-columns: repeat(3, 1fr) !important; }
+      .stats .stat strong { font-size: 26px; }
+      .error { grid-column: 1 / -1; color: var(--bad); font-size: 18px; }
+      footer {
+        padding: 12px 16px;
+        font-size: 26px !important;
+        border-top: 1px solid var(--line);
+        font-size: 20px;
+        text-align: center;
+        min-height: 54px;
+      }
+      footer b { color: var(--good); }
+      footer small { display: block; font-size: 12px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>JevBOT Rx · Brain Race</h1>
+      <div class="mission">
+        STAT delivery: <b>Pharmacy → ICU bed 4</b> · same floor, same people, only the brain differs
+      </div>
+      <button id="start">Start delivery</button>
+    </header>
+    <section class="panes">
+      <div class="pane jev" id="pane-jev">
+        <div class="label">Jev (TypeSafe System One)</div>
+        <div class="decision idle" id="decision-jev">Ready</div>
+        <iframe id="frame-jev" title="Jev brain"></iframe>
+        <div><div class="big"></div><div class="stats"></div></div>
+      </div>
+      <div class="pane llm" id="pane-llm">
+        <div class="label"><span id="llm-name">Off-the-shelf LLM</span></div>
+        <div class="decision idle" id="decision-llm">Ready</div>
+        <iframe id="frame-llm" title="LLM brain"></iframe>
+        <div><div class="big"></div><div class="stats"></div></div>
+      </div>
+    </section>
+    <footer id="verdict">Press <b>Start delivery</b> to dispatch both robots at the same moment.</footer>
+    <script type="module">
+      const params = new URLSearchParams(location.search);
+      const seed = params.get("seed") || "42";
+      const $ = (id) => document.getElementById(id);
+      const stress = params.get("stress") === "1";
+      for (const brain of ["jev", "llm"])
+        $(`frame-${brain}`).src = `/?world=hospital&seed=${seed}&brain=${brain}&race=1${stress ? "&stress=1" : ""}${params.get("scenario") ? "&scenario=" + params.get("scenario") : ""}`;
+      if (params.get("scenario") === "avoid")
+        document.querySelector(".mission").innerHTML =
+          '<b>Avoidance:</b> patients standing in the robot\'s lane · safety brake ON for both';
+      if (stress)
+        document.querySelector(".mission").innerHTML =
+          '<b style="color:var(--bad)">STRESS TEST: safety brake OFF for both robots</b> · patients step out of doorways';
+      fetch("/api/status")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.llm_model) $("llm-name").textContent = `LLM · ${d.llm_model} (GMI)`;
+        })
+        .catch(() => {});
+
+      const metrics = { jev: null, llm: null };
+      const fmtTime = (s) =>
+        s == null ? "–" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+      const ms = (v) => (v == null ? "–" : `${Math.round(v)} ms`);
+      function render(brain) {
+        const m = metrics[brain];
+        if (!m) return;
+        const pane = document.querySelector(`#pane-${brain}`);
+        const d = m.decision || { text: "Ready", tone: "idle" };
+        const box = $(`decision-${brain}`);
+        box.className = `decision ${d.tone}`;
+        box.innerHTML = `${d.text}${d.confidence != null ? ` <small>${d.confidence}% sure</small>` : ""}`;
+        pane.querySelector(".big").innerHTML = `
+          <div class="stat"><span>${m.delivered ? "Delivered in" : "Time elapsed"}</span><strong>${Math.round(m.elapsed_s)} s</strong></div>
+          <div class="stat"><span>Distance to ICU bed 4</span><strong>${m.remaining_m == null ? "–" : Math.round(m.remaining_m) + " m"}</strong>
+            <div class="bar"><i style="width:${Math.round(m.progress * 100)}%"></i></div></div>`;
+        pane.querySelector(".stats").innerHTML = `
+          <div class="stat"><span>Time per decision</span><strong>${ms(m.p50_ms)}</strong></div>
+          <div class="stat"><span>Decisions made</span><strong>${m.decisions}</strong></div>
+          <div class="stat"><span>Cost per decision</span><strong>${m.decisions ? "$" + (m.cost_usd / m.decisions).toFixed(5) : "–"}</strong></div>
+          ${m.last_error ? `<div class="stat error">${m.last_error}</div>` : ""}`;
+      }
+      function verdict() {
+        const j = metrics.jev, l = metrics.llm;
+        if (!j || !l || !started) return;
+        if (j.crashed || l.crashed) {
+          const line = (name, m) =>
+            m.crashed
+              ? `${name} robot <b style="color:var(--bad)">collided</b> at ${Math.round(m.crashed.time_s)} s`
+              : m.delivered
+                ? `${name} delivered in ${Math.round(m.elapsed_s)} s, no collisions`
+                : `${name}: no collisions, ${Math.round(m.remaining_m ?? 0)} m to go`;
+          $("verdict").innerHTML = `${line("Jev", j)} · ${line("LLM", l)}`;
+          return;
+        }
+        if (j.delivered && l.delivered) {
+          const diff = l.elapsed_s - j.elapsed_s;
+          $("verdict").innerHTML = diff >= 0
+            ? `Jev delivered <b>${Math.round(diff)} s sooner</b> (${Math.round(j.elapsed_s)} s vs ${Math.round(l.elapsed_s)} s). For STAT meds, minutes matter.`
+            : `LLM delivered ${Math.round(-diff)} s sooner this run (${fmtTime(l.elapsed_s)} vs ${fmtTime(j.elapsed_s)}).`;
+        } else if (j.delivered) {
+          $("verdict").innerHTML = `Jev delivered in <b>${Math.round(j.elapsed_s)} s</b>. The LLM robot still has <b>${Math.round(l.remaining_m ?? 0)} m</b> to go.`;
+        } else if (l.delivered) {
+          $("verdict").innerHTML = `LLM delivered first in ${fmtTime(l.elapsed_s)}.`;
+        } else {
+          $("verdict").innerHTML = `En route · Jev ${Math.round(j.remaining_m ?? 0)} m left · LLM ${Math.round(l.remaining_m ?? 0)} m left`;
+        }
+      }
+      let started = false;
+      window.addEventListener("message", (e) => {
+        if (e.data?.type !== "race-metrics") return;
+        metrics[e.data.brain] = e.data;
+        render(e.data.brain);
+        verdict();
+      });
+      function start() {
+        started = true;
+        $("start").disabled = true;
+        $("start").textContent = "Racing…";
+        for (const brain of ["jev", "llm"])
+          $(`frame-${brain}`).contentWindow.postMessage({ type: "race-start" }, "*");
+      }
+      $("start").onclick = start;
+      window.startRace = start;
+    </script>
+  </body>
+</html>

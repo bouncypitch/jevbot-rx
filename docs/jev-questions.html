@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>JevBOT Rx questions</title><style>body{font:12.5px/1.45 -apple-system,Helvetica,sans-serif;margin:0.5in;color:#0f1b26}h1{font-size:22px}h2{font-size:16px;margin-top:16px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d5dde5;padding:5px;vertical-align:top;text-align:left}th{background:#eef3f7}code{background:#eef3f7;padding:0 3px}li{margin:2px 0}</style><h1>JevBOT Rx: what Jev is asked</h1>
+<p>All of this is built by <code>prepareJevRequest()</code> in <code>src/jev-request.js</code>. The off-the-shelf LLM receives the exact same state and questions. Each call is <b>one request with 1–3 typed questions</b>, sent every 250 ms near people, turns or crossings, and every 650 ms on a clear corridor. A question with only one possible answer is resolved locally and never sent.</p>
+<h2>Context sent with every question (state)</h2>
+<li><b>driving_style</b> (hospital): &quot;Hospital delivery robot carrying STAT medication: every second matters, so keep making steady progress. People first: pass pedestrians with a wide berth instead of freezing, yield to carts at crossings, and stop only for an imminent collision, a required line, or arrival.&quot;</li>
+<li><b>units</b>: meters, seconds, m/s, degrees; points are [right, ahead] of the robot.</li>
+<li><b>speed / limit</b>, <b>nav</b>: next turn, distance to the turn, remaining meters, direction to the destination.</li>
+<li><b>road</b>: whether the robot is on the corridor floor, lane offset, corridor boundary table, body-to-edge clearances.</li>
+<li><b>traffic</b> table: nearby people and carts (id, type, position, speed, heading, relative speed).</li>
+<li><b>following / blocker / current_path_hazard</b>: when present.</li>
+<li><b>candidates</b> table: the 12 sampled 3-second paths <code>v0…v11</code>. Each has speed, end speed, progress, route/lane/heading error, end point, and on-floor/in-lane flags. It also carries predicted <b>conflicts</b> (object and time to contact). Paths predicted to collide are removed before the model sees the list.</li>
+<h2>Questions (all <code>Choice</code> type)</h2>
+<table>
+<tr><th>id</th><th>Asked when</th><th>Options</th><th>Instruction (verbatim)</th></tr>
+<tr><td><code>motion</code></td><td>Both driving and stopping are possible</td><td><code>drive</code>, <code>stop</code></td><td>&quot;Drive includes slowing or approaching a stop line; stop means zero target speed NOW. Prefer drive when useful progress is possible. Use current conflicts, legal requirements and stop memory; proximity alone is not a reason to stop.&quot;</td></tr>
+<tr><td><code>vector</code></td><td>More than one safe path exists</td><td><code>v0 … v11</code> (only the safe ones)</td><td>&quot;Assuming drive, choose fastest useful progress with low route/lane error. Predictions include following and curve/section speed control. Keep the whole car on asphalt: negative clearance=off-road, null edges=unknown, preview end is not road end.&quot; Situational additions: <i>&quot;Conflicts are future predicted contacts; compare timing and paths. A current-path hazard may not affect another candidate.&quot;</i> and <i>&quot;Recover toward target… clear reverse is allowed.&quot;</i></td></tr>
+<tr><td><code>route</code></td><td>Only after staying well off the route</td><td>route ids</td><td>&quot;Choose a route to destination. Keep the route when on or near it. Alternatives address a sustained departure: consider join distance, direction and blocked junctions; avoid repeated reversals.&quot;</td></tr>
+</table>
+<h2>What code decides, not Jev</h2>
+<p>Collision prediction, removing unsafe paths, the safety brake, freshness checks, rejecting an answer that names an imminent-collision path, and turning the chosen path into steering and speed.</p>
+<h2>Gaps worth fixing next (from the stress test)</h2>
+<li>The <code>vector</code> instruction still says &quot;asphalt&quot; and &quot;car&quot; (inherited from JevPilot). It should describe corridors and people.</li>
+<li>There&#x27;s no dedicated question about people. For example, a <code>Noul</code>: &quot;Is any person about to step into the robot&#x27;s path within the next 3 s?&quot; If yes, slow down pre-emptively.</li>
+<li>A full <code>stop</code> is only offered within 2.5 m of a blocker, so Jev can only pick the slowest moving path until then.</li>

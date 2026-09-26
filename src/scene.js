@@ -207,6 +207,70 @@ function keepCameraOutsideBuildings(position, anchor, buildings) {
   position.copy(anchor).addScaledVector(direction, distance);
 }
 export const carModel = detailedCar;
+// Other hospital traffic: supply carts and patient beds pushed by staff.
+export function hospitalCartModel(id) {
+  const g = new THREE.Group();
+  const bed = Number(String(id).split("-").at(-1)) % 2 === 0;
+  const m = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
+  const add = (w, h, d, x, y, z, color) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m(color));
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    g.add(mesh);
+  };
+  if (bed) {
+    add(1.3, 0.12, 2.6, 0, 0.8, 0, "#b9c3cc"); // bed frame
+    add(1.2, 0.2, 2.4, 0, 0.95, 0, "#ffffff"); // mattress
+    add(1.2, 0.25, 0.8, 0, 1.12, 0.7, "#9ec9e8"); // blanket
+    add(1.3, 0.6, 0.06, 0, 1.2, -1.3, "#8fa3b5"); // headboard
+    for (const x of [-0.55, 0.55])
+      for (const z of [-1.1, 1.1]) add(0.06, 0.8, 0.06, x, 0.4, z, "#6b7784");
+  } else {
+    add(1.1, 1.4, 1.8, 0, 0.9, 0, "#dfe6ec"); // supply cart
+    add(1.12, 0.1, 1.82, 0, 0.6, 0, "#11b5a4");
+    add(1.12, 0.1, 1.82, 0, 1.1, 0, "#11b5a4");
+    add(0.9, 0.06, 0.06, 0, 1.4, 0.95, "#6b7784"); // handle
+  }
+  // A staff member pushing it.
+  add(0.45, 1.1, 0.35, 0, 0.95, bed ? 1.75 : 1.3, "#2e8b7a");
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), m("#c89b7b"));
+  head.position.set(0, 1.68, bed ? 1.75 : 1.3);
+  g.add(head);
+  return g;
+}
+// JevBOT Rx: a hospital delivery cart robot built from primitives. It keeps the
+// simulator's vehicle footprint so what you see matches collision checks.
+export function robotModel() {
+  const g = new THREE.Group();
+  const mat = (color, emissive = 0) =>
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.45,
+      metalness: 0.1,
+      emissive: emissive ? color : "#000000",
+      emissiveIntensity: emissive,
+    });
+  const add = (w, h, d, x, y, z, m) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
+  add(1.85, 1.3, 4.3, 0, 0.95, 0, mat("#f4f6f8")); // body
+  add(1.9, 0.25, 4.4, 0, 0.3, 0, mat("#2f3b46")); // bumper skirt
+  add(1.87, 0.18, 4.32, 0, 1.2, 0, mat("#11b5a4")); // teal stripe
+  add(1.2, 0.12, 0.5, 0, 1.68, -0.9, mat("#34e0ff", 1.4)); // light bar
+  add(1.3, 0.7, 0.06, 0, 1.15, -2.17, mat("#0d1b2a", 0.2)); // face screen
+  add(0.5, 0.14, 0.02, -0.25, 1.22, -2.21, mat("#34e0ff", 1.2)); // eyes
+  add(0.14, 0.14, 0.02, 0.3, 1.22, -2.21, mat("#34e0ff", 1.2));
+  for (const x of [-0.94, 0.94]) {
+    add(0.02, 0.5, 0.14, x, 1.0, 0.6, mat("#e5484d")); // red cross
+    add(0.02, 0.14, 0.5, x, 1.0, 0.6, mat("#e5484d"));
+  }
+  g.userData.eyeHeight = 1.6;
+  return g;
+}
 export function personModel(o) {
   const g = new THREE.Group(),
     body = new THREE.Group();
@@ -317,7 +381,8 @@ export class DriveScene {
     const environmentReady = daylightEnvironment()
       .then((texture) => {
         if (this.scene !== builtScene) return;
-        builtScene.environment = builtScene.background = texture;
+        builtScene.environment = texture;
+        if (this.sim.world.type !== "hospital") builtScene.background = texture;
         builtScene.environmentIntensity = 0.6;
         builtScene.backgroundIntensity = 0.8;
         builtScene.backgroundBlurriness = 0.015;
@@ -325,9 +390,16 @@ export class DriveScene {
       .catch((error) =>
         console.warn("Daylight environment unavailable", error),
       );
-    this.scene.background = new THREE.Color("#b7c9db");
-    this.scene.fog = new THREE.Fog("#b7c6d0", 230, 1050);
-    this.scene.add(new THREE.HemisphereLight("#d5e4f8", "#4e503a", 0.4));
+    const indoorScene = this.sim.world.type === "hospital";
+    this.scene.background = new THREE.Color(indoorScene ? "#e9edf1" : "#b7c9db");
+    this.scene.fog = indoorScene
+      ? new THREE.Fog("#e9edf1", 60, 260)
+      : new THREE.Fog("#b7c6d0", 230, 1050);
+    this.scene.add(
+      indoorScene
+        ? new THREE.HemisphereLight("#ffffff", "#b8c2cc", 1.4)
+        : new THREE.HemisphereLight("#d5e4f8", "#4e503a", 0.4),
+    );
     this.sun = new THREE.DirectionalLight("#fff0d9", 3.4);
     this.sun.position.set(-60, 110, 40);
     this.sun.castShadow = true;
@@ -352,7 +424,42 @@ export class DriveScene {
     this.vegetation = new Vegetation(this.scene, world);
     this.static = new THREE.Group();
     const s = this.static;
-    box(s, 3000, 0.8, 3000, 0, -0.7, 0, "#b2c5a0");
+    const indoor = world.type === "hospital";
+    box(s, 3000, 0.8, 3000, 0, -0.7, 0, indoor ? "#cfd6dc" : "#b2c5a0");
+    if (indoor) {
+      // One-sided ceiling: visible from inside, see-through from the map camera.
+      const ceilingGeometry = new THREE.PlaneGeometry(3000, 3000);
+      ceilingGeometry.rotateX(Math.PI / 2);
+      const ceiling = new THREE.Mesh(
+        ceilingGeometry,
+        new THREE.MeshStandardMaterial({ color: "#e9edf1", roughness: 0.9 }),
+      );
+      ceiling.position.y = 6.5;
+      s.add(ceiling);
+      const panel = new THREE.MeshStandardMaterial({
+        color: "#ffffff",
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
+      });
+      for (const e of world.edges) {
+        const a = world.byId[e.a],
+          b = world.byId[e.b],
+          vertical = a.x === b.x,
+          len = dist(a, b);
+        for (let k = 6; k < len - 4; k += 9) {
+          const light = new THREE.Mesh(
+            new THREE.BoxGeometry(vertical ? 1.2 : 3, 0.05, vertical ? 3 : 1.2),
+            panel,
+          );
+          light.position.set(
+            vertical ? a.x : Math.min(a.x, b.x) + k,
+            6.45,
+            vertical ? Math.min(a.z, b.z) + k : a.z,
+          );
+          s.add(light);
+        }
+      }
+    }
     // Roads, sidewalks, broken center lines, crossings.
     if (world.type === "highway") this.buildHighway(s, world);
     for (const e of world.type === "highway" ? [] : world.edges) {
@@ -370,7 +477,7 @@ export class DriveScene {
         x,
         -0.12,
         z,
-        "#d8d6c9",
+        indoor ? "#c9d3db" : "#d8d6c9",
       );
       box(
         s,
@@ -380,9 +487,9 @@ export class DriveScene {
         x,
         0.015,
         z,
-        "#73817e",
+        indoor ? "#c9d3db" : "#73817e",
       );
-      for (let k = 12; k < len - 10; k += 8)
+      for (let k = 12; k < (indoor ? 0 : len - 10); k += 8)
         box(
           s,
           vertical ? 0.13 : 3.2,
@@ -391,9 +498,9 @@ export class DriveScene {
           vertical ? x : a.x + k,
           0.081,
           vertical ? a.z + k : z,
-          "#d5d7b4",
+          indoor ? "#9ab8cf" : "#d5d7b4",
         );
-      for (const dir of [-1, 1])
+      for (const dir of indoor ? [] : [-1, 1])
         box(
           s,
           vertical ? 0.1 : len - 18,
@@ -408,8 +515,8 @@ export class DriveScene {
     for (const n of world.nodes.filter(
       (node) => world.type !== "highway" || node.townJunction,
     )) {
-      box(s, 12.1, 0.1, 12.1, n.x, 0.018, n.z, "#73817e");
-      for (const id of n.neighbors) {
+      box(s, 12.1, 0.1, 12.1, n.x, 0.018, n.z, indoor ? "#c9d3db" : "#73817e");
+      for (const id of indoor ? [] : n.neighbors) {
         const b = world.byId[id],
           dx = Math.sign(b.x - n.x),
           dz = Math.sign(b.z - n.z);
@@ -554,6 +661,53 @@ export class DriveScene {
           box(s, 0.15, 0.7, 0.8, o.x + d, 0.35, o.z, "#52645a");
         continue;
       }
+      if (o.type === "building" && o.style === "ward") {
+        const g = new THREE.Group();
+        g.position.set(o.x, 0, o.z);
+        const { width: w, depth: d, height: h } = o;
+        box(g, w, h, d, 0, h / 2, 0, "#eef1f4"); // ward walls
+        box(g, w + 0.12, 0.12, d + 0.12, 0, 0.95, 0, "#11b5a4"); // handrail
+        box(g, w + 0.06, 0.3, d + 0.06, 0, 0.15, 0, "#8fa3b5"); // kick plate
+        box(g, w - 1, 0.06, d - 1, 0, h + 0.03, 0, "#d9dfe6"); // ceiling cap
+        // Doors along every corridor-facing wall.
+        for (const [len, axis] of [[w, "x"], [d, "z"]])
+          for (let t = -len / 2 + 8; t < len / 2 - 6; t += 14)
+            for (const side of [-1, 1]) {
+              const door = axis === "x"
+                ? [1.6, 2.3, 0.08, t, 1.15, side * (d / 2 + 0.03)]
+                : [0.08, 2.3, 1.6, side * (w / 2 + 0.03), 1.15, t];
+              box(g, ...door, "#6f8fb0");
+            }
+        if (o.label) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 512;
+          canvas.height = 128;
+          const c = canvas.getContext("2d");
+          c.fillStyle = "#0e5d8f";
+          c.fillRect(0, 0, 512, 128);
+          c.fillStyle = "#ffffff";
+          c.font = "bold 64px -apple-system, Helvetica, sans-serif";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.fillText(o.label.toUpperCase(), 256, 68);
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          const signMat = new THREE.MeshBasicMaterial({ map: tex });
+          for (const [x, z, ry] of [
+            [0, d / 2 + 0.06, 0],
+            [0, -d / 2 - 0.06, Math.PI],
+            [w / 2 + 0.06, 0, Math.PI / 2],
+            [-w / 2 - 0.06, 0, -Math.PI / 2],
+          ]) {
+            const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), signMat);
+            sign.position.set(x, 2.6, z);
+            sign.rotation.y = ry;
+            g.add(sign);
+          }
+        }
+        s.add(g);
+        continue;
+      }
       if (o.type === "building") {
         const g = new THREE.Group();
         g.position.set(o.x, 0, o.z);
@@ -573,7 +727,9 @@ export class DriveScene {
             })
           : o.style === "cottage" || o.style === "townhouse"
             ? pbr("brick", "#c5b5a5", 2.8)
-            : pbr("pavement", "#c9c7c2", 3.5);
+            : this.sim.world.type === "hospital"
+              ? pbr("pavement", "#f3f5f7", 3.5)
+              : pbr("pavement", "#c9c7c2", 3.5);
         box(g, w, h, d, 0, h / 2 + 0.3, 0, facade);
         if (tower) {
           for (let floor = 3.8; floor < h; floor += 3.8) {
@@ -795,7 +951,8 @@ export class DriveScene {
     const pole = cyl(this.destination, 0.055, 5, 0, 2.5, 0, "#e4f6b3");
     const flag = box(this.destination, 1.8, 1.1, 0.06, 0.85, 4.5, 0, "#dff293");
     this.scene.add(this.destination);
-    this.player = carModel("#e2e5e9");
+    const hospital = this.sim.world.type === "hospital";
+    this.player = hospital ? robotModel() : carModel("#e2e5e9");
     this.heroCar = null;
     this.wheelDistance = this.sim.distance;
     this.wheelDirection = Math.sign(this.sim.player.speed) || 1;
@@ -803,7 +960,7 @@ export class DriveScene {
     const playerGroup = this.player;
     const carReady = loadHeroCar()
       .then((model) => {
-        if (this.player !== playerGroup || this.sim.crash) {
+        if (this.player !== playerGroup || this.sim.crash || hospital) {
           model.traverse((mesh) => mesh.geometry?.dispose());
           return;
         }
@@ -819,7 +976,10 @@ export class DriveScene {
     this.vehicles = new Map();
     this.people = new Map();
     for (const v of this.sim.traffic) {
-      const m = carModel(v.color, v.type === "motorcycle");
+      const m =
+        this.sim.world.type === "hospital"
+          ? hospitalCartModel(v.id)
+          : carModel(v.color, v.type === "motorcycle");
       this.vehicles.set(v.id, m);
       this.scene.add(m);
     }
@@ -1028,6 +1188,12 @@ export class DriveScene {
       }
     }
     for (const p of this.sim.pedestrians) {
+      if (!this.people.has(p.id)) {
+        // Scripted hazards appear mid-drive.
+        const created = personModel(p);
+        this.people.set(p.id, created);
+        this.scene.add(created);
+      }
       const m = this.people.get(p.id);
       if (m) {
         m.position.set(
@@ -1118,6 +1284,8 @@ export class DriveScene {
         Math.sin(view.pitch) * view.distance + 0.7,
         v.z + Math.cos(yaw) * horizontal,
       );
+      if (this.sim.world.type === "hospital" && this.mode === "chase")
+        pos.y = Math.min(pos.y, 5.6);
       const ahead = this.mode === "map" ? 0 : 5;
       look = new THREE.Vector3(
         v.x + Math.sin(v.heading) * ahead,

@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>JevBOT Rx — Architecture</title>
+<style>
+  @page { size: 11in 8.5in; margin: 0.4in; }
+  body { font: 13px/1.45 -apple-system, Helvetica, Arial, sans-serif; color: #0f1b26; margin: 0; }
+  h1 { font-size: 26px; margin: 0 0 2px; }
+  .sub { color: #4a5c6d; margin-bottom: 10px; }
+  svg text { font-family: -apple-system, Helvetica, Arial, sans-serif; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 8px; }
+  .card { border: 1px solid #cfd8e0; border-radius: 8px; padding: 8px 12px; }
+  .card h3 { margin: 0 0 4px; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  td, th { border-bottom: 1px solid #e3e8ed; padding: 3px 6px; text-align: left; }
+  th { color: #4a5c6d; font-weight: 600; }
+  .jev { color: #0a8fb0; font-weight: 700; }
+  .llm { color: #c47200; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>JevBOT Rx: architecture</h1>
+<div class="sub">A hospital delivery robot. Code guarantees safety, and Jev supplies fast, bounded judgment. Built at JEVATHON SF on 2026-09-26, on top of JevPilot by Standard Agents.</div>
+
+<svg viewBox="0 0 1000 330" width="100%" style="max-height:3.3in">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4a5c6d"/></marker>
+  </defs>
+  <style>
+    .box { fill: #f4f7fa; stroke: #9fb0c0; stroke-width: 1.2; rx: 8; }
+    .code { fill: #eef6ee; stroke: #6aa56a; }
+    .model { fill: #e6f7fb; stroke: #0a8fb0; }
+    .llmb { fill: #fff3e3; stroke: #c47200; }
+    .t { font-size: 14px; font-weight: 700; fill: #0f1b26; }
+    .s { font-size: 11.5px; fill: #3b4c5c; }
+    .l { stroke: #4a5c6d; stroke-width: 1.4; fill: none; marker-end: url(#a); }
+    .lbl { font-size: 11px; fill: #4a5c6d; }
+  </style>
+
+  <!-- browser side -->
+  <rect x="10" y="10" width="560" height="310" class="box" style="fill:#fbfcfd"/>
+  <text x="22" y="30" class="t">Browser: hospital simulation (Three.js), one per robot</text>
+
+  <rect x="25" y="45" width="250" height="70" class="box code"/>
+  <text x="37" y="66" class="t">Simulation</text>
+  <text x="37" y="84" class="s">Physics, walls, 400 people, 30 carts,</text>
+  <text x="37" y="99" class="s">routing to ICU bed 4, patient step-outs</text>
+
+  <rect x="305" y="45" width="250" height="70" class="box code"/>
+  <text x="317" y="66" class="t">Planner worker (code)</text>
+  <text x="317" y="84" class="s">Samples 12 paths (steer × speed, 3 s),</text>
+  <text x="317" y="99" class="s">predicts collisions, drops unsafe ones</text>
+
+  <rect x="305" y="145" width="250" height="70" class="box code"/>
+  <text x="317" y="166" class="t">Apply decision (code)</text>
+  <text x="317" y="184" class="s">Chosen path → steering + speed;</text>
+  <text x="317" y="199" class="s">rejects stale answers (freshness check)</text>
+
+  <rect x="25" y="145" width="250" height="70" class="box code"/>
+  <text x="37" y="166" class="t">Safety brake (code, every step)</text>
+  <text x="37" y="184" class="s">Speed envelope caps speed near people;</text>
+  <text x="37" y="199" class="s">deterministic, independent of any model</text>
+
+  <rect x="25" y="240" width="530" height="65" class="box"/>
+  <text x="37" y="261" class="t">Race page (race.html)</text>
+  <text x="37" y="279" class="s">Two robots, same seed, same people, same candidate paths, same safety brake.</text>
+  <text x="37" y="294" class="s">Scoreboard: time, distance left, decision, time per decision, cost per decision, collisions</text>
+
+  <path d="M275,80 L305,80" class="l"/>
+  <path d="M430,115 L430,145" class="l"/>
+  <path d="M305,180 L275,180" class="l"/>
+
+  <!-- server side -->
+  <rect x="600" y="10" width="390" height="310" class="box" style="fill:#fbfcfd"/>
+  <text x="612" y="30" class="t">Server (/api/decide): API keys stay here</text>
+
+  <rect x="615" y="45" width="360" height="70" class="box code"/>
+  <text x="627" y="66" class="t">prepareJevRequest(state)</text>
+  <text x="627" y="84" class="s">Compact tables: people, walls, route, the 12 paths;</text>
+  <text x="627" y="99" class="s">questions: motion (drive/stop), vector (which path)</text>
+
+  <rect x="615" y="135" width="170" height="80" class="box model"/>
+  <text x="627" y="156" class="t">Jev (System One)</text>
+  <text x="627" y="174" class="s">Probability over the</text>
+  <text x="627" y="189" class="s">offered options, in one pass</text>
+  <text x="627" y="206" class="s">≈130 ms, input-only price</text>
+
+  <rect x="805" y="135" width="170" height="80" class="box llmb"/>
+  <text x="817" y="156" class="t">LLM (GMI Cloud)</text>
+  <text x="817" y="174" class="s">DeepSeek-V4-Flash: writes</text>
+  <text x="817" y="189" class="s">thinking tokens + JSON</text>
+  <text x="817" y="206" class="s">≈2.5 s p50, 5 s p95</text>
+
+  <rect x="615" y="235" width="360" height="70" class="box code"/>
+  <text x="627" y="256" class="t">Validate (code)</text>
+  <text x="627" y="274" class="s">Same batch? Option actually offered? Not an imminent</text>
+  <text x="627" y="289" class="s">collision? Record latency and cost</text>
+
+  <path d="M700,115 L700,135" class="l"/>
+  <path d="M890,115 L890,135" class="l"/>
+  <path d="M700,215 L700,235" class="l"/>
+  <path d="M890,215 L890,235" class="l"/>
+
+  <path d="M555,65 C580,65 585,70 615,72" class="l"/>
+  <text x="560" y="58" class="lbl">state</text>
+  <path d="M615,275 C585,275 585,185 555,185" class="l"/>
+  <text x="560" y="250" class="lbl">chosen path</text>
+</svg>
+
+<div class="cols">
+  <div class="card">
+    <h3>Where the time goes</h3>
+    Jev returns a probability over the options it's offered, with no text generation, so answers arrive in <span class="jev">≈130 ms</span>. The LLM writes thinking tokens and then JSON, which takes <span class="llm">≈2.5–5 s</span>. By the time its answer lands, people and carts have moved, so the robot either waits or acts on a stale view of the hallway.
+  </div>
+  <div class="card">
+    <h3>Where the cost goes</h3>
+    Jev charges for input only ($0.042/M) and output is free. The LLM pays for input, output, and hidden thinking tokens. Measured per decision: <span class="jev">$0.00006</span> vs <span class="llm">$0.0002</span>.
+  </div>
+  <div class="card">
+    <h3>Why it's safe</h3>
+    Code does collision prediction, filtering, validation and the safety brake, identically for both brains. The model only picks among paths that were already checked. With the brake on, both robots finished with 0 contacts, and freshness shows up as delivery time.
+  </div>
+</div>
+
+<table style="margin-top:10px">
+  <tr><th>Measured, seed 42</th><th class="jev">Jev</th><th class="llm">DeepSeek-V4-Flash (GMI)</th></tr>
+  <tr><td>Standard run: Pharmacy → ICU bed 4</td><td>84 s</td><td>115 s (30 s later)</td></tr>
+  <tr><td>Time per decision (p50)</td><td>≈126 ms</td><td>≈2,500 ms</td></tr>
+  <tr><td>Cost per decision</td><td>$0.00006</td><td>$0.0002</td></tr>
+  <tr><td>Stress test (safety brake off for both, patient steps into the lane about 2 s ahead)</td><td colspan="2">Mixed: in one run only the LLM hit the patient; in another, both did. Too few runs to claim a rate</td></tr>
+</table>
+<div class="sub" style="margin-top:6px">These are single runs on one seed, reported as measured, not averaged. Reproduce them with <code>race.html?seed=42</code> and <code>race.html?seed=42&amp;stress=1</code>.</div>
+</body>
+</html>

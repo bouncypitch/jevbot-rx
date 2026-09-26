@@ -72,11 +72,18 @@ const icon = (name) => `<i data-lucide="${name}"></i>`,
   $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search),
   aliases = { suburb: "town", country: "highway" },
-  requested = params.get("world") || "city",
+  requested = params.get("world") || "hospital",
+  brain = params.get("brain") === "llm" ? "llm" : "jev",
+  // A decision older than this is discarded. The LLM gets a generous window so
+  // it is not disqualified outright by its latency (shown on the race screen).
+  // Stress test: no safety brake, and both robots hold their last command
+  // until a new decision arrives (as a real robot controller would).
+  stress = params.get("stress") === "1",
+  DECISION_EXPIRY_MS = stress ? Infinity : brain === "llm" ? 6000 : 1800,
   type = aliases[requested] || requested;
 const sim = new Simulation(
   Number(params.get("seed")) || Math.floor(Math.random() * 999999),
-  THEMES[type] ? type : "city",
+  THEMES[type] ? type : "hospital",
 );
 let playCredits = null,
   loading = true,
@@ -112,11 +119,11 @@ const keys = new Set(),
   };
 $("app").innerHTML = `
 <main class="drive-area" aria-label="3D driving simulator"><canvas id="world-canvas" aria-label="Interactive three-dimensional driving world"></canvas><div id="vector-labels" aria-label="Jev motion vector probabilities"></div></main>
-<header class="topbar glass"><a href="/" class="brand" aria-label="JevPilot by Standard Agents"><img class="brand-mark" src="/brand/standard-agents-mark.svg" alt=""/><b>JevPilot</b></a><div class="world-picker"><select id="world-select" aria-label="World environment"><option value="city">Skyline City</option><option value="town">Small town</option><option value="highway">Interstate 08</option></select><button id="new-world" title="Refresh world" aria-label="Refresh world">${icon("rotate-cw")}</button><a id="github-link" href="https://github.com/standardagents/jevpilot" target="_blank" rel="noopener noreferrer" aria-label="View JevPilot on GitHub (opens in a new tab)" title="View on GitHub">${icon("github")}</a></div></header>
+<header class="topbar glass"><a href="/" class="brand" aria-label="JevPilot by Standard Agents"><img class="brand-mark" src="/brand/standard-agents-mark.svg" alt=""/><b>JevBOT Rx</b></a><div class="world-picker"><select id="world-select" aria-label="World environment"><option value="hospital">Hospital floor</option><option value="city">Skyline City</option><option value="town">Small town</option><option value="highway">Interstate 08</option></select><button id="new-world" title="Refresh world" aria-label="Refresh world">${icon("rotate-cw")}</button><a id="github-link" href="https://github.com/standardagents/jevpilot" target="_blank" rel="noopener noreferrer" aria-label="View JevPilot on GitHub (opens in a new tab)" title="View on GitHub">${icon("github")}</a></div></header>
 <div class="navigation-hud"><div class="navigation-card glass"><span id="turn-icon">${icon("arrow-up")}</span><div><strong id="next-maneuver">Continue straight</strong><span id="turn-distance"></span></div><span class="nav-divider"></span><span id="remaining"></span><button id="map-toggle" aria-label="Toggle route map" aria-pressed="true" title="Hide route map">${icon("map")}</button></div>
 <div id="minimap" class="minimap glass"><div class="minimap-toolbar" role="toolbar" aria-label="Minimap controls"><button id="map-drag" aria-label="Move minimap" title="Move minimap · drag or use arrow keys">${icon("grip")}</button><div><button id="map-zoom-out" aria-label="Zoom out" title="Zoom out">${icon("minus")}</button><button id="map-zoom-in" aria-label="Zoom in" title="Zoom in">${icon("plus")}</button><button id="map-reset" aria-label="Reset minimap" title="Reset map position, zoom and following">${icon("rotate-ccw")}</button></div></div><canvas id="map-canvas" width="380" height="310" aria-label="Route map. Drag to pan, scroll to zoom, double-click to follow the car."></canvas></div></div>
 <div id="paused-overlay" hidden><div class="glass"><span>${icon("pause")} Paused</span><button id="resume" class="primary">Resume driving</button></div></div>
-<div id="arrival" class="arrival glass" hidden><span class="arrival-mark">${icon("flag")}</span><span class="eyebrow">DESTINATION REACHED</span><h1>You made it.</h1><p id="arrival-summary"></p><button id="next-trip" class="primary">Next drive ${icon("arrow-up-right")}</button><button id="keep-driving" class="subtle">Keep exploring</button></div>
+<div id="arrival" class="arrival glass" hidden><span class="arrival-mark">${icon("flag")}</span><span class="eyebrow">DELIVERY COMPLETE</span><h1>Delivered to ICU bed 4.</h1><p id="arrival-summary"></p><button id="next-trip" class="primary">Next drive ${icon("arrow-up-right")}</button><button id="keep-driving" class="subtle">Keep exploring</button></div>
 <div class="bottom-hud"><div class="driver-dock glass"><div class="speed-cluster"><div title="Current speed"><strong id="speed">0</strong><span>km/h</span></div><span class="speed-limit" title="Speed limit"><small>LIMIT</small><b id="speed-limit">50</b></span></div><span class="dock-divider"></span><div class="pilot-actions"><button id="autopilot" class="pilot-button" role="switch" aria-checked="false" aria-label="Jev autopilot" title="Engage Jev · J">${icon("sparkles")}<span id="pilot-label">Engage Jev</span><kbd>J</kbd></button><button id="candidates-toggle" class="candidate-button" aria-label="Show steering candidates" aria-pressed="false" title="Show steering candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20V3m-3 3 3-3 3 3M12 20C12 14 7 12 3 8m0 3V8h3M12 20c0-6 5-8 9-12m-3 0h3v3"/><circle cx="12" cy="21" r="1" fill="currentColor" stroke="none"/></svg></button></div><div id="decision-status"><span id="pilot-state">Free play</span><span id="context-message">WASD to drive · Space to brake</span><span class="cost-total" title="Estimated cost from Jev-reported token usage and configured pricing."><span id="cost-label">Session</span> <strong id="cost">$0.000000</strong></span></div><span class="dock-divider"></span><div class="dock-tools" role="group" aria-label="View and driving controls"><button id="camera" title="Change camera · C" aria-label="Change camera">${icon("video")}<span id="camera-name">Chase</span></button><button id="scene-json" aria-label="Inspect live JSON" title="Inspect live JSON">${icon("braces")}</button><button id="fullscreen" aria-label="Enter fullscreen" title="Fullscreen">${icon("maximize")}</button><span class="divider"></span><button id="pause" aria-label="Pause simulation" title="Pause · P">${icon("pause")}</button><button id="sign-out" hidden aria-label="Sign out" title="Sign out">${icon("log-out")}</button></div></div></div>
 <dialog id="crash-dialog" aria-labelledby="crash-title" aria-describedby="crash-description"><span class="crash-symbol">${icon("x")}</span><span class="eyebrow">DRIVE ENDED</span><h1 id="crash-title">Game over.</h1><p id="crash-description"></p><div class="crash-stats"><div><strong id="crash-speed"></strong><span>km/h at impact</span></div><div><strong id="crash-distance"></strong><span>meters driven</span></div></div><button id="retry-drive" class="primary">${icon("rotate-ccw")} Restart drive</button><button id="crash-new-world" class="secondary">Try a new world ${icon("arrow-up-right")}</button></dialog>
 <dialog id="credit-dialog" aria-labelledby="credit-title"><span class="eyebrow">THANKS FOR TAKING A DRIVE</span><h2 id="credit-title">That's your free lap.</h2><p>Your $0.25 of Jev play credit has been used. You can keep exploring with manual controls.</p><button id="credit-close" class="primary">Keep driving manually</button><a href="https://standardagents.ai/" target="_blank" rel="noopener noreferrer">Explore Standard Agents ↗</a></dialog>
@@ -257,7 +264,8 @@ function refreshWorld() {
 function syncPilot() {
   const on = sim.autopilot;
   $("autopilot").setAttribute("aria-checked", String(on));
-  $("pilot-label").textContent = on ? "Jev engaged" : "Engage Jev";
+  const who = brain === "llm" ? "LLM" : "Jev";
+  $("pilot-label").textContent = on ? `${who} engaged` : `Engage ${who}`;
   tooltips.set($("autopilot"), `${on ? "Disengage" : "Engage"} Jev · J`);
   $("autopilot").disabled = !!sim.crash;
   document.body.classList.toggle("piloting", on);
@@ -679,7 +687,7 @@ async function decide() {
     const { state, plan } = planned;
     scene.vectors.setCandidates(plan);
     lastInput = inspectRequest(state);
-    const res = await fetch("/api/decide", {
+    const res = await fetch(`/api/decide?brain=${brain}`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -720,7 +728,7 @@ async function decide() {
     const controls = decisionControls(state, data);
     if (!controls) throw Error("Jev returned a mismatched candidate batch.");
     const now = performance.now();
-    if (now - started > 1800)
+    if (now - started > DECISION_EXPIRY_MS)
       throw Error("Jev decision expired before it arrived. Replanning.");
     if (sim.decisionContextChanged(state)) {
       // A changed light or a newly completed stop needs another Jev decision.
@@ -752,10 +760,15 @@ async function decide() {
       sim.player.target = 0;
       scene.vectors.clear();
       errors++;
-      nextDecision = performance.now() + Math.min(15000, 1000 * 2 ** errors);
+      // In a race, both brains retry quickly so a bad answer costs one retry,
+      // not a long backoff that would exaggerate the gap.
+      nextDecision =
+        performance.now() +
+        (race.started ? 500 : Math.min(15000, 1000 * 2 ** errors));
       toast(error.message, "error");
       sim.event(error.message, "error");
-      if (errors >= 3) {
+      lastRaceError = error.message;
+      if (errors >= 3 && !race.started) {
         setPilot(false);
         toast(
           "Jev paused after three failed requests. Toggle autopilot to reconnect.",
@@ -889,7 +902,8 @@ function updateUI() {
     createIcons({ icons });
   }
   const answer = lastDecision?.selection,
-    stale = !lastApplied || performance.now() - lastApplied > 1800;
+    stale =
+      !lastApplied || performance.now() - lastApplied > DECISION_EXPIRY_MS;
   $("pilot-state").textContent = sim.autopilot
     ? stale
       ? "Reading the road…"
@@ -960,7 +974,8 @@ function animate(now) {
       sim.pedals.brake = keys.has("Space") ? 1 : touch.brake;
       sim.steeringInput = steer || touch.steering;
       sim.player.target = 0;
-    } else if (!lastApplied || now - lastApplied > 1800) sim.player.target = 0;
+    } else if (!lastApplied || now - lastApplied > DECISION_EXPIRY_MS)
+      sim.player.target = 0;
     // Preserve real elapsed time on slower displays using bounded physics substeps.
     const steps = Math.max(1, Math.ceil(dt / 0.025));
     for (let i = 0; i < steps; i++) sim.step(dt / steps);
@@ -1019,6 +1034,99 @@ function animate(now) {
     updateUI();
   }
 }
+// Brain Race telemetry: report to the parent race page when embedded.
+const race = {
+  started: null,
+  finished: null,
+  brakes: 0,
+  lastBrake: null,
+  waitingS: 0,
+  lastTick: null,
+};
+function reportRace() {
+  const now = performance.now();
+  if (race.lastTick && race.started && !race.finished) {
+    const stale =
+      !lastApplied || now - lastApplied > Math.min(DECISION_EXPIRY_MS, 1800);
+    if (stale) race.waitingS += (now - race.lastTick) / 1000;
+  }
+  race.lastTick = now;
+  if (sim.brakeReason && sim.brakeReason !== race.lastBrake) race.brakes++;
+  race.lastBrake = sim.brakeReason;
+  if (race.started && !race.finished && sim.complete) race.finished = sim.time;
+  const sorted = [...tally.latencies].sort((a, b) => a - b);
+  const pct = (q) => (sorted.length ? sorted[Math.floor(q * (sorted.length - 1))] : null);
+  const elapsed =
+    race.started == null
+      ? 0
+      : (race.finished ?? sim.crash?.time_s ?? sim.time) - race.started;
+  if (window.parent !== window)
+    window.parent.postMessage(
+      {
+        type: "race-metrics",
+        brain,
+        elapsed_s: elapsed,
+        delivered: !!race.finished,
+        remaining_m: sim.player.route?.length
+          ? Math.max(0, sim.player.route.length - sim.player.s)
+          : null,
+        decision: raceDecisionLabel(),
+        speed_kmh: Math.round(Math.abs(sim.player.speed) * 3.6),
+        progress: sim.player.route?.length
+          ? Math.min(1, sim.player.s / sim.player.route.length)
+          : 0,
+        decisions: tally.calls,
+        p50_ms: pct(0.5),
+        p95_ms: pct(0.95),
+        cost_usd: tally.cost,
+        brakes: race.brakes,
+        waiting_s: race.waitingS,
+        collisions: sim.collisions,
+        crashed: sim.crash
+          ? { type: sim.crash.type, time_s: race.started == null ? null : sim.crash.time_s - race.started }
+          : null,
+        last_error: lastRaceError,
+      },
+      "*",
+    );
+}
+let lastRaceError = null;
+function raceDecisionLabel() {
+  if (sim.crash)
+    return {
+      text: `COLLISION with ${sim.crash.object_id?.startsWith("patient") ? "a patient" : sim.crash.type}`,
+      tone: "stop",
+    };
+  if (sim.complete) return { text: "Delivered", tone: "done" };
+  if (!race.started) return { text: "Ready", tone: "idle" };
+  const fresh =
+    lastApplied && performance.now() - lastApplied <= DECISION_EXPIRY_MS;
+  if (!fresh || !lastDecision?.selection)
+    return { text: "Waiting for a decision…", tone: "wait" };
+  const candidate =
+    scene.vectors.answeredPlan?.vectors[lastDecision.selection.choice];
+  const name = candidateName(candidate);
+  return {
+    text: name === "Brake" ? "Stop" : `Drive ${name.toLowerCase()}`,
+    tone: name === "Brake" ? "stop" : "drive",
+    confidence:
+      brain === "jev" ? Math.round(lastDecision.selection.confidence * 100) : null,
+  };
+}
+window.addEventListener("message", (event) => {
+  if (event.data?.type === "race-start" && !sim.autopilot) {
+    setPilot(true);
+    if (sim.autopilot) {
+      race.started = sim.time;
+      race.finished = null;
+    }
+  }
+});
+setInterval(reportRace, 250);
+if (params.get("race")) document.body.classList.add("race");
+if (stress) sim.safety = false;
+if (params.get("scenario") === "avoid") sim.addLaneObstacles();
+document.title = `JevBOT Rx · ${brain === "llm" ? "LLM brain" : "Jev brain"}`;
 refreshWorld();
 syncPilot();
 updateUI();
@@ -1036,7 +1144,7 @@ fetch("/api/status", { credentials: "same-origin" })
     updateCredits(data.credits);
     $("sign-out").hidden = !data.authenticated;
     if (data.user) tooltips.set($("sign-out"), `Sign out · ${data.user.email}`);
-    configured = data.configured;
+    configured = brain === "llm" ? data.llm_configured : data.configured;
     updateCostTooltip(data.pricing);
     if (!configured)
       toast("Jev API key is missing. Check the server configuration.", "error");
