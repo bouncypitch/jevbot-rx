@@ -7,6 +7,20 @@ JevBOT Rx handles the fetching, so nurses can handle the patients.
 
 ▶️ **60-second demo (5×):** [`docs/media/jevbot-rx-demo-5x.mp4`](docs/media/jevbot-rx-demo-5x.mp4) · **Full race video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
 
+### Key metrics at a glance
+The same 20 real robot decisions were sent to every model, with the same inputs and each LLM on its fastest setting.
+
+| | **Jev (TypeSafe)** | DeepSeek-V4-Flash | GPT-6 luna | GPT-6 sol | GPT-6 astra |
+|---|---|---|---|---|---|
+| **Time per decision (p50)** | **143 ms** | 2,275 ms | 2,302 ms | 2,349 ms | 3,387 ms |
+| Time per decision (p95) | **373 ms** | 5,080 ms | 3,842 ms | 4,503 ms | 9,494 ms |
+| **Cost per decision** | **$0.000074** | $0.000197 | $0.000129 | $0.002262 | $0.013206 |
+| Valid answers | **20/20** | 18/20 | 20/20 | 18/20 | 20/20 |
+| **Hospital delivery, Pharmacy → ICU bed 4** | **157 s** | 232 s | — | — | — |
+| Stress test collisions (brake off) | **0 of 2 runs** | 2 of 2 runs | — | — | — |
+
+Jev is **16–24× faster per decision** than every LLM tested, and cheaper per decision than all of them. The full delivery race and stress test were run against DeepSeek-V4-Flash only.
+
 Built in one day at **JEVATHON** (TypeSafe AI × The AI Collective, hosted at CodeRabbit, San Francisco, 2026-09-26). It extends [JevPilot](https://github.com/standardagents/jevpilot) by Standard Agents.
 
 ---
