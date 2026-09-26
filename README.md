@@ -36,6 +36,19 @@ Videos: [main race](docs/media/jevbot-rx-brain-race.mp4) · [stress test](docs/m
 
 **What made Jev collision-free in the stress test:** the robot runs at a realistic indoor speed (about 16 km/h in sim units). Jev is also offered a full **stop** as soon as a person is within about 9 m of the path, not only at 2.5 m. It took that option ("Stop, 71% sure"), waited, then continued. The LLM had the same options, but its answers arrived about 2 s late, while the robot was still executing a stale decision.
 
+## Benchmark: Jev vs GPT-6 and other LLMs on the same decisions
+We captured 94 real decision requests from a hospital run and replayed 20 of them, evenly spaced, through each model. The inputs were identical. Every LLM used its fastest reasoning setting. Script: `scripts/brain-benchmark.mjs`; raw numbers: `docs/brain-benchmark.json`.
+
+| Model | Time per decision p50 / p95 | Valid answers | Same choice as Jev | Cost per decision |
+|---|---|---|---|---|
+| **Jev (TypeSafe)** | **143 ms / 373 ms** | **20/20** | — | **$0.000074** |
+| GPT-6 astra (GMI) | 3,387 / 9,494 ms | 20/20 | 15/20 | $0.013206 |
+| GPT-6 sol (GMI) | 2,349 / 4,503 ms | 18/20 | 12/20 | $0.002262 |
+| GPT-6 luna (GMI) | 2,302 / 3,842 ms | 20/20 | 13/20 | $0.000129 |
+| DeepSeek-V4-Flash (GMI) | 2,275 / 5,080 ms | 18/20 | 11/20 | $0.000197 |
+
+Claude Opus is supported by the script (set `ANTHROPIC_API_KEY`) but wasn't run in time for the deadline. "Same choice as Jev" measures agreement, not correctness; several paths are often equally good.
+
 ## Where the gains come from
 - **Time:** Jev returns a probability over the offered options in one pass, with no text generation. The LLM writes thinking tokens and then JSON. A decision that arrives 2–5 s late is about a hallway that no longer exists, so the robot either waits or acts on stale information.
 - **Cost:** Jev charges for input only ($0.042 per million tokens) and output is free. The LLM pays for input, output and hidden reasoning tokens on every call.

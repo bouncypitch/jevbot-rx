@@ -1,0 +1,50 @@
+{
+  "decisions": 20,
+  "table": [
+    {
+      "model": "Jev (TypeSafe)",
+      "p50_ms": 143,
+      "p95_ms": 373,
+      "valid": "20/20",
+      "same_choice_as_jev": "—",
+      "cost_per_decision": "$0.000074",
+      "errors": ""
+    },
+    {
+      "model": "GPT-6 astra",
+      "p50_ms": 3387,
+      "p95_ms": 9494,
+      "valid": "20/20",
+      "same_choice_as_jev": "15/20",
+      "cost_per_decision": "$0.013206",
+      "errors": ""
+    },
+    {
+      "model": "GPT-6 sol",
+      "p50_ms": 2349,
+      "p95_ms": 4503,
+      "valid": "18/20",
+      "same_choice_as_jev": "12/20",
+      "cost_per_decision": "$0.002262",
+      "errors": "GMI LLM returned HTTP 400."
+    },
+    {
+      "model": "GPT-6 luna",
+      "p50_ms": 2302,
+      "p95_ms": 3842,
+      "valid": "20/20",
+      "same_choice_as_jev": "13/20",
+      "cost_per_decision": "$0.000129",
+      "errors": ""
+    },
+    {
+      "model": "DeepSeek-V4-Flash",
+      "p50_ms": 2275,
+      "p95_ms": 5080,
+      "valid": "18/20",
+      "same_choice_as_jev": "11/20",
+      "cost_per_decision": "$0.000197",
+      "errors": "LLM returned an invalid vector choice."
+    }
+  ]
+}

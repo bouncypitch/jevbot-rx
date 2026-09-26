@@ -74,6 +74,9 @@ export async function evaluate(state, env, signal, onUsage, brain = "jev") {
   const requestQuestions = prepared.request.questions;
   const body = JSON.stringify(prepared.request);
   const apiCall = Object.keys(requestQuestions).length > 0;
+  // Optional: capture real decision requests for offline model benchmarks.
+  if (apiCall && brain === "jev" && process.env.JEV_DUMP)
+    (await import("node:fs")).appendFileSync(process.env.JEV_DUMP, body + "\n");
   let data = { answers: {}, usage: { input_tokens: 0, output_tokens: 0 } };
   const llm = brain === "llm";
   if (apiCall && llm) {

@@ -11,6 +11,38 @@ function oneHot(criteria, choice) {
   );
 }
 
+async function askClaude(request, env, signal, prompt) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: env.CLAUDE_MODEL || "claude-opus-5-5",
+      max_tokens: 200,
+      system: prompt.system,
+      messages: [{ role: "user", content: prompt.user }],
+    }),
+    signal: signal || AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    const error = new Error(`Anthropic API returned HTTP ${res.status}.`);
+    error.status = res.status;
+    throw error;
+  }
+  const data = await res.json();
+  return {
+    text: data.content?.find((c) => c.type === "text")?.text || "{}",
+    usage: {
+      input_tokens: data.usage?.input_tokens ?? 0,
+      output_tokens: data.usage?.output_tokens ?? 0,
+    },
+    model: data.model,
+  };
+}
+
 export async function askLLM(request, env, signal) {
   const questions = request.questions;
   const schema = Object.fromEntries(
@@ -19,55 +51,69 @@ export async function askLLM(request, env, signal) {
       `one of ${Object.keys(q.criteria).join(" | ")}`,
     ]),
   );
-  const res = await fetch(
-    `${env.GMI_BASE_URL || "https://api.gmi-serving.com/v1"}/chat/completions`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.GMI_API_KEY}`,
-        "Content-Type": "application/json",
+  const prompt = {
+    system:
+      'You control a hospital delivery robot. Answer every question by picking exactly one option id. Reply with JSON only, e.g. {"motion":"drive","vector":"v3"}.',
+    user: JSON.stringify({
+      state: request.state,
+      questions: Object.fromEntries(
+        Object.entries(questions).map(([id, q]) => [
+          id,
+          { instructions: q.instructions, options: Object.keys(q.criteria) },
+        ]),
+      ),
+      answer_format: schema,
+    }),
+  };
+  const model = llmModel(env);
+  let reply;
+  if (model.startsWith("anthropic/")) {
+    reply = await askClaude(request, { ...env, CLAUDE_MODEL: model.slice(10) }, signal, prompt);
+  } else {
+    const openai = model.startsWith("openai/");
+    const res = await fetch(
+      `${env.GMI_BASE_URL || "https://api.gmi-serving.com/v1"}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.GMI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          ...(openai ? {} : { temperature: 0 }),
+          // Each model's fastest setting: GPT-6 offers "none", others
+          // "minimal". The cap leaves room for mandatory thinking tokens.
+          reasoning_effort: openai
+            ? model.includes("astra") ? "low" : "none"
+            : "minimal",
+          ...(openai ? { max_completion_tokens: 600 } : { max_tokens: 600 }),
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: prompt.system },
+            { role: "user", content: prompt.user },
+          ],
+        }),
+        signal: signal || AbortSignal.timeout(15000),
       },
-      body: JSON.stringify({
-        model: llmModel(env),
-        temperature: 0,
-        // Fastest setting the model offers; the cap leaves room for its
-        // mandatory thinking tokens so answers are not truncated.
-        reasoning_effort: "minimal",
-        max_tokens: 600,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              'You control a hospital delivery robot. Answer every question by picking exactly one option id. Reply with JSON only, e.g. {"motion":"drive","vector":"v3"}.',
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              state: request.state,
-              questions: Object.fromEntries(
-                Object.entries(questions).map(([id, q]) => [
-                  id,
-                  { instructions: q.instructions, options: Object.keys(q.criteria) },
-                ]),
-              ),
-              answer_format: schema,
-            }),
-          },
-        ],
-      }),
-      signal: signal || AbortSignal.timeout(15000),
-    },
-  );
-  if (!res.ok) {
-    const error = new Error(`GMI LLM returned HTTP ${res.status}.`);
-    error.status = res.status;
-    throw error;
+    );
+    if (!res.ok) {
+      const error = new Error(`GMI LLM returned HTTP ${res.status}.`);
+      error.status = res.status;
+      throw error;
+    }
+    const data = await res.json();
+    reply = {
+      text: data.choices?.[0]?.message?.content || "{}",
+      usage: {
+        input_tokens: data.usage?.prompt_tokens ?? 0,
+        output_tokens: data.usage?.completion_tokens ?? 0,
+      },
+    };
   }
-  const data = await res.json();
   let parsed = {};
   try {
-    const text = data.choices?.[0]?.message?.content || "{}";
+    const text = reply.text;
     parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   } catch {
     throw new Error("LLM returned unparseable JSON.");
@@ -96,9 +142,6 @@ export async function askLLM(request, env, signal) {
   return {
     model: llmModel(env),
     answers,
-    usage: {
-      input_tokens: data.usage?.prompt_tokens ?? 0,
-      output_tokens: data.usage?.completion_tokens ?? 0,
-    },
+    usage: reply.usage,
   };
 }
