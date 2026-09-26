@@ -5,7 +5,7 @@ JevBOT Rx handles the fetching, so nurses can handle the patients.
 
 ![JevBOT Rx 60-second demo (5× speed): nurse texts the robot, then Jev vs DeepSeek race the same STAT delivery](docs/media/demo-5x-preview.gif)
 
-▶️ **60-second demo (5×):** [`docs/media/jevbot-rx-demo-5x.mp4`](docs/media/jevbot-rx-demo-5x.mp4) · **Full race video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
+🌐 **Demo page:** https://bouncypitch.github.io/jevbot-rx/ · ▶️ **60-second demo (5×):** [`docs/media/jevbot-rx-demo-5x.mp4`](docs/media/jevbot-rx-demo-5x.mp4) · **Full race video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
 
 ### Key metrics at a glance
 The same 20 real robot decisions were sent to every model, with the same inputs and each LLM on its fastest setting.
