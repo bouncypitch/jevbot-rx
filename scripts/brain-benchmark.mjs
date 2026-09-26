@@ -15,15 +15,6 @@ const models = [
   { name: "GPT-6 sol", id: "openai/gpt-6-sol", inP: 2, outP: 10 },
   { name: "GPT-6 luna", id: "openai/gpt-6-luna", inP: 0.1, outP: 0.5 },
   { name: "DeepSeek-V4-Flash", id: "deepseek-ai/DeepSeek-V4-Flash", inP: 0.14, outP: 0.28 },
-  ...(env.ANTHROPIC_API_KEY
-    ? [{
-        name: "Claude Opus 5.5",
-        id: "anthropic/claude-opus-5-5",
-        // Set CLAUDE_INPUT_PRICE / CLAUDE_OUTPUT_PRICE (USD per 1M tokens) for cost.
-        inP: Number(env.CLAUDE_INPUT_PRICE || NaN),
-        outP: Number(env.CLAUDE_OUTPUT_PRICE || NaN),
-      }]
-    : []),
 ];
 
 async function jev(request) {

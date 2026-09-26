@@ -1125,6 +1125,73 @@ window.addEventListener("message", (event) => {
 setInterval(reportRace, 250);
 if (params.get("race")) document.body.classList.add("race");
 if (stress) sim.safety = false;
+// Nurse texting: a phone thread beside the hospital view. Jev reads each text.
+if (sim.world.type === "hospital" && !params.get("race")) {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<aside id="phone"><header>💬 JevBOT Rx <small>Nurse Kim · 3rd floor</small></header><div id="thread"></div><form id="compose"><input id="msg" autocomplete="off" placeholder="Text the robot…" value="Need STAT meds from pharmacy to ICU bed 4 please"/><button>Send</button></form></aside>`,
+  );
+  const thread = document.getElementById("thread");
+  const bubble = (who, text, note) => {
+    thread.insertAdjacentHTML(
+      "beforeend",
+      `<div class="bubble ${who}">${text}${note ? `<small>${note}</small>` : ""}</div>`,
+    );
+    thread.scrollTop = thread.scrollHeight;
+  };
+  const robotState = () => ({
+    delivering: sim.autopilot,
+    delivered: sim.complete,
+    remaining_m: Math.round(Math.max(0, sim.player.route.length - sim.player.s)),
+    destination: "ICU bed 4",
+  });
+  const eta = () =>
+    Math.round(Math.max(0, sim.player.route.length - sim.player.s) / Math.max(2, sim.world.theme.limit * 0.8));
+  bubble("robot", "Hi! I'm JevBOT Rx. Text me a delivery, ask where I am, or reply 'got it' when something arrives.");
+  let announcedArrival = false;
+  setInterval(() => {
+    if (sim.complete && !announcedArrival) {
+      announcedArrival = true;
+      bubble("robot", "📦 Delivered to ICU bed 4. The meds are in drawer 2. Reply 'got it' to confirm.");
+    }
+  }, 500);
+  document.getElementById("compose").onsubmit = async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("msg"),
+      text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    bubble("nurse", text);
+    try {
+      const res = await fetch("/api/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, robot: robotState() }),
+      });
+      const r = await res.json();
+      if (!res.ok) throw Error(r.error);
+      const note = `Jev read this in ${r.latency_ms} ms · ${r.intent.replace("_", " ")} · ${r.urgency}`;
+      if (r.intent === "new_delivery") {
+        if (r.destination !== "icu_bed_4" && r.destination !== "none")
+          bubble("robot", `In this demo I can only deliver to ICU bed 4, not ${r.destination_name}. Sorry!`, note);
+        else if (sim.autopilot) bubble("robot", `I'm already on a delivery. About ${eta()} s left.`, note);
+        else {
+          setPilot(true);
+          bubble("robot", `${r.urgency === "STAT" ? "🚨 STAT: " : ""}On my way to ICU bed 4. ETA about ${eta()} s. I'll text you when it's there.`, note);
+        }
+      } else if (r.intent === "status")
+        bubble("robot", sim.complete ? "Already delivered to ICU bed 4 ✅" : sim.autopilot ? `${robotState().remaining_m} m from ICU bed 4, about ${eta()} s away.` : "I'm idle at the pharmacy. Text me a delivery!", note);
+      else if (r.intent === "cancel") {
+        setPilot(false);
+        bubble("robot", "Delivery cancelled. I've stopped safely.", note);
+      } else if (r.intent === "confirm_receipt")
+        bubble("robot", "Thanks! Marked as received ✅", note);
+      else bubble("robot", "Sorry, I can do deliveries, status updates and cancellations.", note);
+    } catch (err) {
+      bubble("robot", `I couldn't read that (${err.message}).`);
+    }
+  };
+}
 if (params.get("scenario") === "avoid") sim.addLaneObstacles();
 document.title = `JevBOT Rx · ${brain === "llm" ? "LLM brain" : "Jev brain"}`;
 refreshWorld();

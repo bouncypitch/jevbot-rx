@@ -6,6 +6,7 @@ import {
 } from "../src/planning.js";
 import { prepareJevRequest, expandJevAnswers } from "../src/jev-request.js";
 import { askLLM } from "./llm.js";
+import { readNurseText } from "./nurse-text.js";
 
 export function validState(state) {
   if (
@@ -188,6 +189,16 @@ export function jevMiddleware(env) {
           output_per_million: Number(env.JEV_OUTPUT_PRICE ?? 0),
         },
       });
+    if (path === "/api/text" && req.method === "POST") {
+      let raw = "";
+      for await (const chunk of req) raw += chunk;
+      try {
+        const { text, robot } = JSON.parse(raw);
+        return send(200, await readNurseText(String(text).slice(0, 500), robot, env));
+      } catch (e) {
+        return send(502, { error: e.message });
+      }
+    }
     if (path !== "/api/decide" || req.method !== "POST")
       return send(404, { error: "Not found" });
     const brain =
