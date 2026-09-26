@@ -1,9 +1,11 @@
+<a href="https://bouncypitch.github.io/jevbot-rx/"><img src="docs/media/demo-5x-preview.gif" alt="JevBOT Rx 60-second demo (5× speed): a nurse texts the robot, then Jev and DeepSeek race the same STAT delivery" width="100%"></a>
+
+<p align="center"><b>▶️ <a href="https://bouncypitch.github.io/jevbot-rx/">Watch the full-quality demo with sound-free captions</a></b> · <a href="docs/media/jevbot-rx-demo-5x.mp4">Download the mp4</a></p>
+
 # JevBOT Rx 🏥🤖
 
 **A hospital delivery robot that decides in milliseconds, not seconds.**
 JevBOT Rx handles the fetching, so nurses can handle the patients.
-
-![JevBOT Rx 60-second demo (5× speed): nurse texts the robot, then Jev vs DeepSeek race the same STAT delivery](docs/media/demo-5x-preview.gif)
 
 🌐 **Demo page:** https://bouncypitch.github.io/jevbot-rx/ · ▶️ **60-second demo (5×):** [`docs/media/jevbot-rx-demo-5x.mp4`](docs/media/jevbot-rx-demo-5x.mp4) · **Full race video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
 
