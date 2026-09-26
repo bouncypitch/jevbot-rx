@@ -5,7 +5,7 @@ JevBOT Rx handles the fetching, so nurses can handle the patients.
 
 ![Jev vs an off-the-shelf LLM, racing the same STAT delivery](docs/media/brain-race-preview.gif)
 
-▶️ **Full demo video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
+▶️ **60-second demo (5×):** [`docs/media/jevbot-rx-demo-5x.mp4`](docs/media/jevbot-rx-demo-5x.mp4) · **Full race video:** [`docs/media/jevbot-rx-brain-race.mp4`](docs/media/jevbot-rx-brain-race.mp4) · 📐 **Architecture (PDF):** [`docs/media/jevbot-rx-architecture.pdf`](docs/media/jevbot-rx-architecture.pdf) · ❓ **Every question asked to Jev:** [`docs/jev-questions.md`](docs/jev-questions.md)
 
 Built in one day at **JEVATHON** (TypeSafe AI × The AI Collective, hosted at CodeRabbit, San Francisco, 2026-09-26). It extends [JevPilot](https://github.com/standardagents/jevpilot) by Standard Agents.
 
