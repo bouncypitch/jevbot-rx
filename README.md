@@ -2,7 +2,6 @@
 
 https://github.com/user-attachments/assets/25c0f56c-160e-4921-8f01-1fb7856ab71e
 
-<a href="https://bouncypitch.github.io/jevbot-rx/"><img src="docs/media/demo-5x-preview.gif" alt="JevBOT Rx 60-second demo (5× speed): a nurse texts the robot, then Jev and DeepSeek race the same STAT delivery" width="100%"></a>
 
 <p align="center"><b>▶️ <a href="https://bouncypitch.github.io/jevbot-rx/">Watch the full-quality demo</a></b> · <a href="docs/media/jevbot-rx-demo-5x.mp4">Download the mp4</a></p>
 
