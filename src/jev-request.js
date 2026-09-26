@@ -103,7 +103,7 @@ export function prepareJevRequest(full) {
   const state = {
     driving_style: [
       full.world_type === "hospital"
-        ? "Hospital delivery robot carrying STAT medication: every second matters, so keep making steady progress. People first: pass pedestrians with a wide berth instead of freezing, yield to carts at crossings, and stop only for an imminent collision, a required line, or arrival."
+        ? "Hospital delivery robot carrying STAT medication: every second matters, so keep making steady progress. People first: pass pedestrians with a wide berth instead of freezing, yield to carts at crossings. Stop when a person is in or stepping into your path; otherwise stop only for an imminent collision or arrival."
         : "Aggressive right-lane driver: favor fast useful progress. Stop only for imminent collision, a required line, or arrival.",
       hasTraffic
         ? "Follow queues without passing; close to 2m before stopping. Rear/oncoming/adjacent traffic alone is no reason to brake."

@@ -125,11 +125,11 @@
 
 <table style="margin-top:10px">
   <tr><th>Measured, seed 42</th><th class="jev">Jev</th><th class="llm">DeepSeek-V4-Flash (GMI)</th></tr>
-  <tr><td>Standard run: Pharmacy → ICU bed 4</td><td>84 s</td><td>115 s (30 s later)</td></tr>
-  <tr><td>Time per decision (p50)</td><td>≈126 ms</td><td>≈2,500 ms</td></tr>
-  <tr><td>Cost per decision</td><td>$0.00006</td><td>$0.0002</td></tr>
-  <tr><td>Stress test (safety brake off for both, patient steps into the lane about 2 s ahead)</td><td colspan="2">Mixed: in one run only the LLM hit the patient; in another, both did. Too few runs to claim a rate</td></tr>
+  <tr><td>Delivery, Pharmacy → ICU bed 4 (brake on, 400 people, 30 carts)</td><td>157 s</td><td>232 s (75 s later)</td></tr>
+  <tr><td>Time per decision (p50)</td><td>129 ms</td><td>1,882 ms</td></tr>
+  <tr><td>Cost per decision</td><td>$0.00007</td><td>$0.00020</td></tr>
+  <tr><td>Stress test (brake off for both, patient steps into the lane)</td><td>0 collisions (2 of 2 runs)</td><td>Hit the patient (2 of 2 runs)</td></tr>
 </table>
-<div class="sub" style="margin-top:6px">These are single runs on one seed, reported as measured, not averaged. Reproduce them with <code>race.html?seed=42</code> and <code>race.html?seed=42&amp;stress=1</code>.</div>
+<div class="sub" style="margin-top:6px">These are two runs on one seed, reported as measured, not averaged. Reproduce them with <code>race.html?seed=42</code> and <code>race.html?seed=42&amp;stress=1</code>.</div>
 </body>
 </html>

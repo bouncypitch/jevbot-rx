@@ -361,6 +361,19 @@ export function stopAvailability(state, moving = movingCandidates(state)) {
     state.destination_m <= FULL_STOP_DISTANCE_M
   )
     reasons.push("destination_reached");
+  // Indoors, a person ahead near the robot's path is a legitimate reason to
+  // offer a full stop early, before they are within 2.5 m.
+  if (
+    state.world_type === "hospital" &&
+    (state.scene?.nearby || []).some(
+      (o) =>
+        o.type === "pedestrian" &&
+        o.ahead_m > 0 &&
+        o.ahead_m < 9 &&
+        Math.abs(o.right_m) < 2.2,
+    )
+  )
+    reasons.push("person_near_path");
   // Keep an emergency fallback if every sampled movement is blocked. This is
   // not permission to select a full stop while useful moving choices exist.
   if (!moving.length) reasons.push("no_eligible_moving_path");

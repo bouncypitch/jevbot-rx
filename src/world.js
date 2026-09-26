@@ -7,7 +7,7 @@ export const THEMES = {
     size: 5,
     traffic: 30,
     buildings: 1,
-    limit: 8,
+    limit: 4.5,
   },
   city: {
     name: "Skyline City",

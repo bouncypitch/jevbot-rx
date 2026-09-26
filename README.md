@@ -22,18 +22,19 @@ The decision a robot faces a few times per second (*which of these paths, right 
 - **A deterministic safety brake.** Code, not a model, guarantees no contact.
 - **Brain Race** (`/race.html`): a split screen where the same floor, people, candidate paths, questions and safety brake are driven by **Jev** on one side and **DeepSeek-V4-Flash on GMI Cloud** on the other. The scoreboard shows time, distance to the goal, the live decision, time per decision and cost per decision.
 
-## Results (seed 42, as measured)
+## Results (seed 42, 400 people, 30 carts, realistic speed, as measured)
 | | **Jev** | **DeepSeek-V4-Flash (GMI)** |
 |---|---|---|
-| Delivery, Pharmacy → ICU bed 4 (run with 40 people) | **84 s** | 115 s: Jev was **30 s sooner** |
-| Same delivery with 400 people and 30 carts (video) | **99 s** | 40 m short of the goal when the recording ended |
-| Time per decision, p50 / p95 | **≈126 ms / ≈200 ms** | ≈2,500 ms / ≈5,100 ms |
-| Cost per decision | **≈$0.00006** | ≈$0.0002 |
-| Contacts with the safety brake on | 0 | 0 |
+| **Delivery, Pharmacy → ICU bed 4** (safety brake on) | **157 s** | 232 s: Jev was **75 s sooner** |
+| Time per decision (p50) | **129 ms** | 1,882 ms |
+| Decisions made during the delivery | **370** | 65 |
+| Cost per decision | **$0.00007** | $0.00020 |
+| Contacts, safety brake on | 0 | 0 |
+| **Stress test** (safety brake off for both; patients step into the lane about 2 s ahead) | **0 collisions in 2 of 2 runs, delivered in 159 s** | Hit the patient in 2 of 2 runs (36 s, 41 s) |
 
-The LLM also sometimes answered with a path that wasn't offered, which the validator rejects. Jev can only choose among the options it's given.
+Videos: [main race](docs/media/jevbot-rx-brain-race.mp4) · [stress test](docs/media/jevbot-rx-stress-test.mp4). The LLM also sometimes named a path that wasn't offered, which the validator rejects; Jev can only choose among the options it's given.
 
-**Stress test** (`race.html?seed=42&stress=1`): the safety brake is off for both robots, and a patient steps into the lane about 2 s ahead. The results were mixed. In one run only the LLM robot hit the patient; in the recorded run, both did. That's too few runs to claim a rate, which is why the safety brake stays on in the real design. See *Limitations*.
+**What made Jev collision-free in the stress test:** the robot runs at a realistic indoor speed (about 16 km/h in sim units). Jev is also offered a full **stop** as soon as a person is within about 9 m of the path, not only at 2.5 m. It took that option ("Stop, 71% sure"), waited, then continued. The LLM had the same options, but its answers arrived about 2 s late, while the robot was still executing a stale decision.
 
 ## Where the gains come from
 - **Time:** Jev returns a probability over the offered options in one pass, with no text generation. The LLM writes thinking tokens and then JSON. A decision that arrives 2–5 s late is about a hallway that no longer exists, so the robot either waits or acts on stale information.
@@ -64,8 +65,8 @@ node scripts/make-architecture-pdf.mjs                  # architecture PDF
 
 ## Limitations (honest list)
 - The corridors reuse JevPilot's road geometry and scale, so they're wider and the robot is faster than a real hospital robot.
+- Results are from two runs on one seed, not a statistical study.
 - When a person **stands still in the lane**, the planner stops behind them instead of steering around. Going around needs planner changes (offer bypass paths around stationary people) and is the next item on the roadmap.
-- Results are from single runs on one seed, not averages.
 - The Jev instructions still contain some wording inherited from driving ("asphalt", "car").
 
 ## Roadmap

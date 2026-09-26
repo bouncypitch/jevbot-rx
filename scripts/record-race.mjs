@@ -34,7 +34,7 @@ while (Date.now() < deadline) {
   }
   // Stop 45 s after Jev arrives if the LLM robot is still en route.
   if (/Jev delivered/.test(verdict) && !jevDoneAt) jevDoneAt = Date.now();
-  if (jevDoneAt && Date.now() - jevDoneAt > 45000) {
+  if (jevDoneAt && Date.now() - jevDoneAt > Number(process.env.AFTER_JEV_S || 240) * 1000) {
     await page.waitForTimeout(5000);
     break;
   }
